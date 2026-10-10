@@ -1,0 +1,17 @@
+.cache
+.pio
+.vscode/*
+!.vscode/extensions.json
+
+# Generated / local
+compile_commands.json
+.clangd
+*.bin
+*.elf
+*.hex
+*.map
+*.d
+
+# Secrets (if you extract them later)
+# include/secrets.h
+# .env
