@@ -69,19 +69,16 @@ static void handleNewMessages(int numNewMessages) {
       time_t now;
       time(&now);
 
-      preferences.begin("pwr-mon", false);
-      time_t lastTime = (time_t)preferences.getULong64("last_t", 0);
-      preferences.end();
-
       bool currentPower = powerMonitorIsOn();
+      time_t stateSince = powerMonitorStateSince();
       String stat = currentPower ? "✅ Світло є" : "❌ Світла немає";
 
       String reply = "📍 " + String(addr) + "\n";
       reply += "Статус: " + stat + "\n";
 
-      if (lastTime > 0) {
+      if (stateSince > 0 && now >= stateSince) {
         reply += (currentPower ? "Зі світлом вже: " : "Без світла вже: ");
-        reply += getDuration(now - lastTime) + "\n";
+        reply += getDuration(now - stateSince) + "\n";
       }
 
       reply += "📡 Сигнал Wi-Fi: " + String(WiFi.RSSI()) + " dBm";

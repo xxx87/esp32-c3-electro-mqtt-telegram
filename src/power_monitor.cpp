@@ -56,6 +56,13 @@ static void saveEventQueue() {
   preferences.end();
 }
 
+static void persistKnownState(bool powerOn, time_t sinceTime) {
+  preferences.begin("pwr-mon", false);
+  preferences.putUChar("known_on", powerOn ? 1 : 0);
+  preferences.putULong64("since_t", (uint64_t)sinceTime);
+  preferences.end();
+}
+
 static void enqueuePowerEvent(bool powerOn, time_t eventTime) {
   if (eventQueueCount >= MAX_PENDING_EVENTS) {
     memmove(&eventQueue[0], &eventQueue[1], sizeof(PowerEvent) * (MAX_PENDING_EVENTS - 1));
@@ -66,6 +73,7 @@ static void enqueuePowerEvent(bool powerOn, time_t eventTime) {
   eventQueue[eventQueueCount].eventTime = (uint64_t)eventTime;
   eventQueueCount++;
   saveEventQueue();
+  persistKnownState(powerOn, eventTime);
 
   Serial.print("Queued power event: ");
   Serial.print(powerOn ? "ON" : "OFF");
@@ -135,7 +143,46 @@ static void flushPendingEvents() {
   }
 }
 
-bool powerMonitorIsOn() { return digitalRead(SENSOR_PIN) == LOW; }
+static void recoverStateAfterPowerLoss() {
+  time_t now;
+  time(&now);
+  if (now < 1000000) {
+    Serial.println("Skip boot recovery: time not synced");
+    return;
+  }
+
+  const bool current = powerMonitorIsOn();
+
+  preferences.begin("pwr-mon", true);
+  const bool hasKnown = preferences.isKey("known_on");
+  const bool knownOn = preferences.getUChar("known_on", current ? 1 : 0) != 0;
+  preferences.end();
+
+  if (!hasKnown) {
+    persistKnownState(current, now);
+    Serial.println("Initialized known power state");
+    return;
+  }
+
+  if (knownOn == current) {
+    return;
+  }
+
+  Serial.println("Power state changed while device was offline, queueing event");
+  enqueuePowerEvent(current, now);
+  lastPendingRetry = 0;
+}
+
+bool powerMonitorIsOn() {
+  return digitalRead(SENSOR_PIN) == LOW;
+}
+
+time_t powerMonitorStateSince() {
+  preferences.begin("pwr-mon", true);
+  time_t since = (time_t)preferences.getULong64("since_t", 0);
+  preferences.end();
+  return since;
+}
 
 void powerMonitorSetup() {
   pinMode(SENSOR_PIN, INPUT_PULLUP);
@@ -146,6 +193,7 @@ void powerMonitorSetup() {
     Serial.print("Loaded pending power events: ");
     Serial.println(eventQueueCount);
   }
+  recoverStateAfterPowerLoss();
 }
 
 void powerMonitorLoop() {
