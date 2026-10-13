@@ -3,6 +3,7 @@
 .vscode/*
 !.vscode/extensions.json
 
+.cursor
 # Generated / local
 compile_commands.json
 .clangd

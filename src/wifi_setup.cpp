@@ -3,6 +3,7 @@
 
 #include <WiFi.h>
 #include <WiFiManager.h>
+#include <IPAddress.h>
 
 void wifiSetupAndLoadConfig() {
   preferences.begin("config", false);
@@ -55,6 +56,29 @@ void wifiSetupAndLoadConfig() {
   strcpy(mqtt_user, custom_mqtt_user.getValue());
   strcpy(mqtt_pass, custom_mqtt_pass.getValue());
   strcpy(mqtt_topic, custom_mqtt_topic.getValue());
+}
+
+bool wifiHasInternet() {
+  static bool cached = false;
+  static unsigned long lastCheck = 0;
+
+  if (WiFi.status() != WL_CONNECTED) {
+    cached = false;
+    lastCheck = millis();
+    return false;
+  }
+
+  if (lastCheck != 0 && millis() - lastCheck < INTERNET_CHECK_CACHE_MS) {
+    return cached;
+  }
+
+  lastCheck = millis();
+  IPAddress ip;
+  cached = WiFi.hostByName("api.telegram.org", ip) == 1;
+  if (!cached) {
+    cached = WiFi.hostByName("dns.google", ip) == 1;
+  }
+  return cached;
 }
 
 void wifiFactoryResetIfHeld() {
